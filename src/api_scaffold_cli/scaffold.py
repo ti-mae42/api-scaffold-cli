@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+from api_scaffold_cli.celery import CeleryLog, apply_celery_option
 from api_scaffold_cli.database import DatabaseLog, apply_database_option
 from api_scaffold_cli.transform import TransformationLog, transform_project_identity
 
@@ -45,6 +46,7 @@ class ScaffoldResult:
     path: Path
     transformation_log: TransformationLog
     database_log: DatabaseLog
+    celery_log: CeleryLog
 
 
 def validate_project_name(project_name: str) -> None:
@@ -82,6 +84,7 @@ def create_project(
     output_dir: Path,
     base_repo_url: str,
     database: str = "none",
+    with_celery: bool = False,
 ) -> ScaffoldResult:
     validate_project_name(project_name)
     validate_repository_source(base_repo_url)
@@ -115,6 +118,7 @@ def create_project(
         _remove_git_directory(target_dir)
         transformation_log = transform_project_identity(target_dir, project_name)
         database_log = apply_database_option(target_dir, database)
+        celery_log = apply_celery_option(target_dir, with_celery)
     except ScaffoldError:
         _cleanup_failed_clone(target_dir, keep_target_directory=target_preexisted)
         raise
@@ -127,7 +131,12 @@ def create_project(
         _cleanup_failed_clone(target_dir, keep_target_directory=target_preexisted)
         raise ScaffoldError(f"Could not generate project at {target_dir}: {exc}") from exc
 
-    return ScaffoldResult(path=target_dir, transformation_log=transformation_log, database_log=database_log)
+    return ScaffoldResult(
+        path=target_dir,
+        transformation_log=transformation_log,
+        database_log=database_log,
+        celery_log=celery_log,
+    )
 
 
 def _clone_repository(base_repo_url: str, target_dir: Path) -> None:

@@ -68,6 +68,7 @@ def handle_new(args: argparse.Namespace) -> int:
             output_dir=args.output_dir,
             base_repo_url=args.base_repo_url,
             database=args.database,
+            with_celery=args.with_celery,
         )
     except ScaffoldError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -75,6 +76,7 @@ def handle_new(args: argparse.Namespace) -> int:
 
     _print_transformation_log(result.transformation_log)
     _print_database_log(result.database_log)
+    _print_celery_log(result.celery_log)
     print(f"Created project '{args.project_name}' at {result.path}")
     return 0
 
@@ -96,6 +98,26 @@ def _print_transformation_log(log) -> None:
 def _print_database_log(log) -> None:
     print("Database log:")
     print(f"- Mode: {log.database}")
+
+    if log.removed_paths:
+        print(f"- Removed paths: {len(log.removed_paths)}")
+        for path in log.removed_paths:
+            print(f"  - {path}")
+
+    if log.updated_files:
+        print(f"- Updated files: {len(log.updated_files)}")
+        for path in log.updated_files:
+            print(f"  - {path}")
+
+    if log.warnings:
+        print(f"- Warnings: {len(log.warnings)}")
+        for warning in log.warnings:
+            print(f"  - {warning}")
+
+
+def _print_celery_log(log) -> None:
+    print("Celery log:")
+    print(f"- Enabled: {log.enabled}")
 
     if log.removed_paths:
         print(f"- Removed paths: {len(log.removed_paths)}")

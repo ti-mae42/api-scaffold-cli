@@ -83,6 +83,14 @@ BASE_REPO_URL=https://github.com/ti-mae42/python-flask-base-api
 
 If a database file or startup block cannot be removed safely, the CLI leaves it in place and prints a warning in the database log.
 
+## Celery Mode
+
+`--with-celery` keeps Celery worker files, Celery and Redis dependencies, worker environment variables, and worker startup documentation when present. It also adds generated README notes for starting a worker.
+
+When `--with-celery` is omitted, the scaffold removes Celery-specific files listed by `TEMPLATE_FEATURES.md`, removes marked optional Celery setup from files such as `initialize.py`, removes Celery-specific worker imports, cleans Celery dependencies and env example variables, removes Celery worker commands from docs/scripts when they are clearly Celery-specific, and adds a README note that the project was generated without Celery support.
+
+Generic worker or async settings are preserved unless they clearly reference Celery.
+
 ## Tests
 
 ```bash

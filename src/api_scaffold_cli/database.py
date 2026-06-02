@@ -152,17 +152,16 @@ def load_template_feature_guidance(project_dir: Path) -> TemplateFeatureGuidance
             _append_unique(guidance.startup_files, path)
             continue
 
-        if in_when_disabled and lowered.startswith("- remove"):
+        if in_when_disabled and lowered.startswith("- remove") and _is_safe_database_removal_path(path):
             _append_unique(guidance.database_paths, path)
         elif current_group == "startup_files":
             _append_unique(guidance.startup_files, path)
         else:
             _append_unique(fallback_database_paths, path)
 
-    if not guidance.database_paths:
-        for path in fallback_database_paths:
-            if _is_safe_database_removal_path(path):
-                _append_unique(guidance.database_paths, path)
+    for path in fallback_database_paths:
+        if _is_safe_database_removal_path(path):
+            _append_unique(guidance.database_paths, path)
 
     return guidance
 

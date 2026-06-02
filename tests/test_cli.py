@@ -89,6 +89,7 @@ class TestCliArgumentParsing(unittest.TestCase):
             self.assertEqual(exit_code, 0, stderr.getvalue())
             self.assertIn("Transformation log:", stdout.getvalue())
             self.assertIn("Database log:", stdout.getvalue())
+            self.assertIn("Celery log:", stdout.getvalue())
             self.assertIn(f"Created project 'new-project-api' at {generated_project}", stdout.getvalue())
             self.assertTrue((generated_project / "app.py").is_file())
             self.assertFalse((generated_project / ".git").exists())

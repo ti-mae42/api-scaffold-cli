@@ -156,6 +156,8 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("from my_awesome_api.db import db", initialize_file)
             self.assertIn("from my_awesome_api.infrastructure import apm, security", initialize_file)
             self.assertNotIn("from my_awesome_api.infrastructure import apm, database, security", initialize_file)
+            self.assertNotIn("worker", initialize_file)
+            self.assertNotIn("celery_app", initialize_file)
             self.assertNotIn("db.init_app", initialize_file)
             self.assertIn('"My Awesome API"', app_file)
             self.assertEqual(
@@ -270,6 +272,7 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("my_awesome_api/initialize.py", result.database_log.updated_files)
             self.assertIn("migrations", result.database_log.removed_paths)
             self.assertIn("alembic.ini", result.database_log.removed_paths)
+            self.assertTrue((generated_project / "pyproject.toml").is_file())
 
             sys.path.insert(0, str(generated_project))
             try:
@@ -279,6 +282,95 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
                 sys.path.remove(str(generated_project))
                 sys.modules.pop("my_awesome_api.app", None)
                 sys.modules.pop("my_awesome_api.initialize", None)
+                sys.modules.pop("my_awesome_api.config", None)
+                sys.modules.pop("my_awesome_api", None)
+
+    def test_create_project_keeps_celery_support_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_repo = create_fake_base_api_repo(tmp_path / "base-api")
+            output_dir = tmp_path / "output"
+
+            result = create_project(
+                project_name="my-awesome-api",
+                output_dir=output_dir,
+                base_repo_url=str(source_repo),
+                with_celery=True,
+            )
+            generated_project = result.path
+
+            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "worker.py").is_file())
+
+            pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
+            requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
+            env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
+            readme = (generated_project / "README.md").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+
+            self.assertIn("celery", pyproject)
+            self.assertIn("celery", requirements)
+            self.assertIn("REDIS_URL=", env_example)
+            self.assertIn("celery_app = worker.create_worker(web_app)", initialize_file)
+            self.assertIn("Celery worker support", readme)
+            self.assertEqual(result.celery_log.enabled, True)
+            self.assertEqual(result.celery_log.removed_paths, [])
+
+            sys.path.insert(0, str(generated_project))
+            try:
+                module = importlib.import_module("my_awesome_api.initialize")
+                self.assertEqual(module.create_app(), {"name": "My Awesome API"})
+                self.assertEqual(module.celery_app, {"worker_for": "My Awesome API"})
+            finally:
+                sys.path.remove(str(generated_project))
+                sys.modules.pop("my_awesome_api.initialize", None)
+                sys.modules.pop("my_awesome_api.infrastructure.worker", None)
+                sys.modules.pop("my_awesome_api.infrastructure", None)
+                sys.modules.pop("my_awesome_api.config", None)
+                sys.modules.pop("my_awesome_api", None)
+
+    def test_create_project_removes_celery_support_when_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_repo = create_fake_base_api_repo(tmp_path / "base-api")
+            output_dir = tmp_path / "output"
+
+            result = create_project(
+                project_name="my-awesome-api",
+                output_dir=output_dir,
+                base_repo_url=str(source_repo),
+                with_celery=False,
+            )
+            generated_project = result.path
+
+            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "worker.py").exists())
+
+            pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
+            requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
+            env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
+            readme = (generated_project / "README.md").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            agents = (generated_project / "AGENTS.md").read_text(encoding="utf-8")
+
+            self.assertNotIn("celery", pyproject.lower())
+            self.assertNotIn("celery", requirements.lower())
+            self.assertNotIn("REDIS_URL", env_example)
+            self.assertNotIn("worker", initialize_file)
+            self.assertNotIn("celery_app", initialize_file)
+            self.assertNotIn("celery -A", readme)
+            self.assertNotIn("celery -A", agents)
+            self.assertIn("without Celery support", readme)
+            self.assertIn("my_awesome_api/infrastructure/worker.py", result.celery_log.removed_paths)
+            self.assertTrue((generated_project / "pyproject.toml").is_file())
+
+            sys.path.insert(0, str(generated_project))
+            try:
+                module = importlib.import_module("my_awesome_api.initialize")
+                self.assertEqual(module.create_app(), {"name": "My Awesome API"})
+                self.assertFalse(hasattr(module, "celery_app"))
+            finally:
+                sys.path.remove(str(generated_project))
+                sys.modules.pop("my_awesome_api.initialize", None)
+                sys.modules.pop("my_awesome_api.infrastructure", None)
                 sys.modules.pop("my_awesome_api.config", None)
                 sys.modules.pop("my_awesome_api", None)
 
@@ -333,6 +425,12 @@ def create_fake_base_api_repo(path: Path) -> Path:
     (infrastructure_dir / "apm.py").write_text("def create_monitor(app):\n    return app\n", encoding="utf-8")
     (infrastructure_dir / "security.py").write_text("", encoding="utf-8")
     (infrastructure_dir / "database.py").write_text("# BASE_API_OPTIONAL: postgresql\n", encoding="utf-8")
+    (infrastructure_dir / "worker.py").write_text(
+        "# BASE_API_OPTIONAL: celery\n\n"
+        "def create_worker(app):\n"
+        "    return {'worker_for': app['name']}\n",
+        encoding="utf-8",
+    )
     (package_dir / "config.py").write_text(
         'APP_NAME = "Base API"\nCONFIG_NAME = "base-api-config"\nENV_PREFIX = "BASE_API"\n',
         encoding="utf-8",
@@ -346,7 +444,7 @@ def create_fake_base_api_repo(path: Path) -> Path:
     )
     (package_dir / "initialize.py").write_text(
         "from base_api.config import APP_NAME\n"
-        "from base_api.infrastructure import apm, database, security\n\n"
+        "from base_api.infrastructure import apm, database, security, worker\n\n"
         "# TESTE_API_OPTIONAL: postgresql\n"
         "from base_api.db import db\n"
         "\n"
@@ -354,7 +452,10 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "    app = {'name': APP_NAME}\n"
         "    # TESTE_API_OPTIONAL: postgresql\n"
         "    db.init_app(app)\n"
-        "    return app\n",
+        "    return app\n"
+        "web_app = create_app()\n\n"
+        "# BASE_API_OPTIONAL: celery\n"
+        "celery_app = worker.create_worker(web_app)\n",
         encoding="utf-8",
     )
     (package_dir / "app.py").write_text(
@@ -376,11 +477,13 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "    \"Flask>=3\",\n"
         "    \"SQLAlchemy>=2\",\n"
         "    \"Alembic>=1\",\n"
+        "    \"celery>=5\",\n"
+        "    \"redis>=5\",\n"
         "]\n",
         encoding="utf-8",
     )
     (path / "requirements.txt").write_text(
-        "Flask>=3\nSQLAlchemy>=2\npsycopg[binary]>=3\nalembic>=1\n",
+        "Flask>=3\nSQLAlchemy>=2\npsycopg[binary]>=3\nalembic>=1\ncelery>=5\nredis>=5\n",
         encoding="utf-8",
     )
     (path / "docker-compose.yml").write_text(
@@ -395,7 +498,14 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "BASE_API_SERVICE_NAME=base-api-web\n"
         "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/base_api\n"
         "POSTGRES_HOST=localhost\n"
+        "REDIS_URL=redis://localhost:6379/1\n"
         "CONTAINER=base-api-web\n",
+        encoding="utf-8",
+    )
+    (path / "AGENTS.md").write_text(
+        "# Run Celery worker\n"
+        "# BASE_API_OPTIONAL: celery\n"
+        "celery -A base_api.initialize:celery_app worker\n",
         encoding="utf-8",
     )
     migrations_dir = path / "migrations"
@@ -412,7 +522,24 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "- `migrations`\n"
         "- `alembic.ini`\n\n"
         "Startup files:\n"
-        "- `base_api/initialize.py`\n",
+        "- `base_api/initialize.py`\n"
+        "\n"
+        "When disabled:\n"
+        "- Remove `base_api/infrastructure/database.py`.\n"
+        "- Remove `migrations`.\n"
+        "- Remove database dependencies from `pyproject.toml`.\n"
+        "\n"
+        "## Celery Support\n\n"
+        "Files involved:\n"
+        "- `base_api/initialize.py`\n"
+        "- `base_api/infrastructure/worker.py`\n"
+        "- `pyproject.toml`\n"
+        "- `.env.example`\n\n"
+        "When disabled:\n"
+        "- Remove `base_api/infrastructure/worker.py`.\n"
+        "- Remove `celery_app = worker.create_worker(web_app)` from `base_api/initialize.py`.\n"
+        "- Remove `celery` from `pyproject.toml`.\n"
+        "- Remove `REDIS_URL` only if no other enabled feature uses Redis.\n",
         encoding="utf-8",
     )
     (path / "base-api.env").write_text("PROJECT=base-api\n", encoding="utf-8")
