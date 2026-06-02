@@ -294,6 +294,9 @@ def _is_celery_env_line(line: str) -> bool:
 def _remove_celery_docs_and_commands(project_dir: Path, log: CeleryLog) -> None:
     for path in _iter_candidate_text_files(project_dir):
         relative_path = str(path.relative_to(project_dir))
+        if path.name == TEMPLATE_FEATURES_FILE:
+            continue
+
         if not _is_command_or_doc_file(path):
             continue
 

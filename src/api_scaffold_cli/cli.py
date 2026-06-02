@@ -39,7 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
     new_parser.add_argument(
         "--with-aws",
         action="store_true",
-        help="Enable AWS project options.",
+        help="Enable AWS project options. Deprecated; use --with-cloud=aws.",
+    )
+    new_parser.add_argument(
+        "--with-cloud",
+        default=None,
+        help="Enable a cloud provider integration. Currently supports aws.",
     )
     new_parser.add_argument(
         "--base-repo-url",
@@ -69,6 +74,7 @@ def handle_new(args: argparse.Namespace) -> int:
             base_repo_url=args.base_repo_url,
             database=args.database,
             with_celery=args.with_celery,
+            cloud=_resolve_cloud_option(args),
         )
     except ScaffoldError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -77,8 +83,19 @@ def handle_new(args: argparse.Namespace) -> int:
     _print_transformation_log(result.transformation_log)
     _print_database_log(result.database_log)
     _print_celery_log(result.celery_log)
+    _print_cloud_log(result.cloud_log)
     print(f"Created project '{args.project_name}' at {result.path}")
     return 0
+
+
+def _resolve_cloud_option(args: argparse.Namespace) -> str | None:
+    if args.with_cloud:
+        return args.with_cloud
+
+    if args.with_aws:
+        return "aws"
+
+    return None
 
 
 def _print_transformation_log(log) -> None:
@@ -117,6 +134,27 @@ def _print_database_log(log) -> None:
 
 def _print_celery_log(log) -> None:
     print("Celery log:")
+    print(f"- Enabled: {log.enabled}")
+
+    if log.removed_paths:
+        print(f"- Removed paths: {len(log.removed_paths)}")
+        for path in log.removed_paths:
+            print(f"  - {path}")
+
+    if log.updated_files:
+        print(f"- Updated files: {len(log.updated_files)}")
+        for path in log.updated_files:
+            print(f"  - {path}")
+
+    if log.warnings:
+        print(f"- Warnings: {len(log.warnings)}")
+        for warning in log.warnings:
+            print(f"  - {warning}")
+
+
+def _print_cloud_log(log) -> None:
+    print("Cloud log:")
+    print(f"- Provider: {log.provider or 'none'}")
     print(f"- Enabled: {log.enabled}")
 
     if log.removed_paths:

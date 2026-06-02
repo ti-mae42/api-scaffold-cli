@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from api_scaffold_cli.celery import CeleryLog, apply_celery_option
+from api_scaffold_cli.cloud import CloudLog, apply_cloud_option
 from api_scaffold_cli.database import DatabaseLog, apply_database_option
 from api_scaffold_cli.transform import TransformationLog, transform_project_identity
 
@@ -47,6 +48,7 @@ class ScaffoldResult:
     transformation_log: TransformationLog
     database_log: DatabaseLog
     celery_log: CeleryLog
+    cloud_log: CloudLog
 
 
 def validate_project_name(project_name: str) -> None:
@@ -85,6 +87,7 @@ def create_project(
     base_repo_url: str,
     database: str = "none",
     with_celery: bool = False,
+    cloud: str | None = None,
 ) -> ScaffoldResult:
     validate_project_name(project_name)
     validate_repository_source(base_repo_url)
@@ -119,6 +122,7 @@ def create_project(
         transformation_log = transform_project_identity(target_dir, project_name)
         database_log = apply_database_option(target_dir, database)
         celery_log = apply_celery_option(target_dir, with_celery)
+        cloud_log = apply_cloud_option(target_dir, cloud)
     except ScaffoldError:
         _cleanup_failed_clone(target_dir, keep_target_directory=target_preexisted)
         raise
@@ -136,6 +140,7 @@ def create_project(
         transformation_log=transformation_log,
         database_log=database_log,
         celery_log=celery_log,
+        cloud_log=cloud_log,
     )
 
 
