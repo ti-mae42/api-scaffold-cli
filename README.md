@@ -29,7 +29,7 @@ api-scaffold new new-project-api
 Create a PostgreSQL project with Celery and AWS options enabled:
 
 ```bash
-api-scaffold new new-project-api --database=postgresql --with-celery --with-aws
+api-scaffold new new-project-api --database=postgresql --with-celery --with-cloud=aws
 ```
 
 Use a custom base repository and output directory:
@@ -63,7 +63,8 @@ Example:
 - `PROJECT_NAME`: Required project name. Use letters, numbers, hyphens, or underscores, starting with a letter or number.
 - `--database`: Database backend. Accepted values are `none` and `postgresql`. Defaults to `none`.
 - `--with-celery`: Enable Celery-related generation flags. Defaults to disabled.
-- `--with-aws`: Enable AWS-related generation flags. Defaults to disabled.
+- `--with-cloud`: Enable cloud integration. Currently supports `aws`. Defaults to disabled.
+- `--with-aws`: Deprecated alias for `--with-cloud=aws`.
 - `--base-repo-url`: Base API repository URL or local git repository path. Defaults to the `BASE_REPO_URL` value in `.env`.
 - `--output-dir`: Directory where the project will be generated. Defaults to the current directory.
 
@@ -90,6 +91,14 @@ If a database file or startup block cannot be removed safely, the CLI leaves it 
 When `--with-celery` is omitted, the scaffold removes Celery-specific files listed by `TEMPLATE_FEATURES.md`, removes marked optional Celery setup from files such as `initialize.py`, removes Celery-specific worker imports, cleans Celery dependencies and env example variables, removes Celery worker commands from docs/scripts when they are clearly Celery-specific, and adds a README note that the project was generated without Celery support.
 
 Generic worker or async settings are preserved unless they clearly reference Celery.
+
+## Cloud Mode
+
+`--with-cloud=aws` keeps AWS-specific adapters, AWS dependencies such as `boto3`, AWS environment variables, and AWS setup notes when present. It also adds generated README notes for generic AWS configuration.
+
+When `--with-cloud` is omitted, AWS-specific files listed by `TEMPLATE_FEATURES.md` are removed, AWS optional marker lines are cleaned from config files, AWS dependencies and env vars are removed, clearly AWS-only Docker/CI/doc lines are cleaned, and the README notes that the project was generated without AWS support.
+
+Cloud providers other than `aws` are currently treated as disabled and reported as warnings in the cloud log. Generic infrastructure folders are preserved.
 
 ## Tests
 

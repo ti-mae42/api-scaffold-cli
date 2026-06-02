@@ -374,6 +374,117 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
                 sys.modules.pop("my_awesome_api.config", None)
                 sys.modules.pop("my_awesome_api", None)
 
+    def test_create_project_keeps_aws_support_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_repo = create_fake_base_api_repo(tmp_path / "base-api")
+            output_dir = tmp_path / "output"
+
+            result = create_project(
+                project_name="my-awesome-api",
+                output_dir=output_dir,
+                base_repo_url=str(source_repo),
+                cloud="aws",
+            )
+            generated_project = result.path
+
+            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "cloud.py").is_file())
+            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "__init__.py").is_file())
+
+            pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
+            requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
+            env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
+            readme = (generated_project / "README.md").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+
+            self.assertIn("boto3", pyproject)
+            self.assertIn("boto3", requirements)
+            self.assertIn("CLOUD_REGION=", env_example)
+            self.assertIn("SNS_PLATFORM_APPLICATION_ARN=", env_example)
+            self.assertIn("from my_awesome_api.infrastructure import apm, security, cloud", initialize_file)
+            self.assertIn("AWS integration support", readme)
+            self.assertEqual(result.cloud_log.provider, "aws")
+            self.assertTrue(result.cloud_log.enabled)
+            self.assertEqual(result.cloud_log.removed_paths, [])
+
+            sys.path.insert(0, str(generated_project))
+            try:
+                module = importlib.import_module("my_awesome_api.initialize")
+                self.assertEqual(module.create_app(), {"name": "My Awesome API"})
+            finally:
+                sys.path.remove(str(generated_project))
+                sys.modules.pop("my_awesome_api.initialize", None)
+                sys.modules.pop("my_awesome_api.infrastructure.cloud", None)
+                sys.modules.pop("my_awesome_api.infrastructure", None)
+                sys.modules.pop("my_awesome_api.config", None)
+                sys.modules.pop("my_awesome_api", None)
+
+    def test_create_project_removes_aws_support_when_cloud_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_repo = create_fake_base_api_repo(tmp_path / "base-api")
+            output_dir = tmp_path / "output"
+
+            result = create_project(
+                project_name="my-awesome-api",
+                output_dir=output_dir,
+                base_repo_url=str(source_repo),
+            )
+            generated_project = result.path
+
+            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "cloud.py").exists())
+            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "__init__.py").is_file())
+
+            pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
+            requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
+            env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
+            readme = (generated_project / "README.md").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            agents = (generated_project / "AGENTS.md").read_text(encoding="utf-8")
+            docker_compose = (generated_project / "docker-compose.yml").read_text(encoding="utf-8")
+
+            self.assertNotIn("boto3", pyproject)
+            self.assertNotIn("boto3", requirements)
+            self.assertNotIn("CLOUD_REGION", env_example)
+            self.assertNotIn("SNS_PLATFORM_APPLICATION_ARN", env_example)
+            self.assertNotIn("cloud", initialize_file)
+            self.assertNotIn("boto3", agents)
+            self.assertNotIn("CLOUD_REGION", docker_compose)
+            self.assertIn("without AWS support", readme)
+            self.assertIn("my_awesome_api/infrastructure/cloud.py", result.cloud_log.removed_paths)
+            self.assertIsNone(result.cloud_log.provider)
+            self.assertFalse(result.cloud_log.enabled)
+
+            sys.path.insert(0, str(generated_project))
+            try:
+                module = importlib.import_module("my_awesome_api.initialize")
+                self.assertEqual(module.create_app(), {"name": "My Awesome API"})
+            finally:
+                sys.path.remove(str(generated_project))
+                sys.modules.pop("my_awesome_api.initialize", None)
+                sys.modules.pop("my_awesome_api.infrastructure", None)
+                sys.modules.pop("my_awesome_api.config", None)
+                sys.modules.pop("my_awesome_api", None)
+
+    def test_create_project_removes_aws_support_for_unsupported_cloud_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_repo = create_fake_base_api_repo(tmp_path / "base-api")
+            output_dir = tmp_path / "output"
+
+            result = create_project(
+                project_name="my-awesome-api",
+                output_dir=output_dir,
+                base_repo_url=str(source_repo),
+                cloud="gcp",
+            )
+            generated_project = result.path
+
+            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "cloud.py").exists())
+            self.assertEqual(result.cloud_log.provider, "gcp")
+            self.assertFalse(result.cloud_log.enabled)
+            self.assertTrue(any("Unsupported cloud provider 'gcp'" in warning for warning in result.cloud_log.warnings))
+
     def assert_template_identity_removed(self, generated_project: Path) -> None:
         forbidden = ("Base API", "base_api", "base-api", "BASE_API")
         skipped_directories = {"__pycache__", ".pytest_cache", ".venv", "build", "dist"}
@@ -425,6 +536,13 @@ def create_fake_base_api_repo(path: Path) -> Path:
     (infrastructure_dir / "apm.py").write_text("def create_monitor(app):\n    return app\n", encoding="utf-8")
     (infrastructure_dir / "security.py").write_text("", encoding="utf-8")
     (infrastructure_dir / "database.py").write_text("# BASE_API_OPTIONAL: postgresql\n", encoding="utf-8")
+    (infrastructure_dir / "cloud.py").write_text(
+        "# BASE_API_OPTIONAL: aws\n\n"
+        "class CloudClient:\n"
+        "    def __init__(self, region_name=None):\n"
+        "        self.region_name = region_name\n",
+        encoding="utf-8",
+    )
     (infrastructure_dir / "worker.py").write_text(
         "# BASE_API_OPTIONAL: celery\n\n"
         "def create_worker(app):\n"
@@ -432,7 +550,11 @@ def create_fake_base_api_repo(path: Path) -> Path:
         encoding="utf-8",
     )
     (package_dir / "config.py").write_text(
-        'APP_NAME = "Base API"\nCONFIG_NAME = "base-api-config"\nENV_PREFIX = "BASE_API"\n',
+        'APP_NAME = "Base API"\n'
+        'CONFIG_NAME = "base-api-config"\n'
+        'ENV_PREFIX = "BASE_API"\n'
+        "# BASE_API_OPTIONAL: aws\n"
+        'CLOUD_REGION = "us-east-1"\n',
         encoding="utf-8",
     )
     (package_dir / "db.py").write_text(
@@ -444,7 +566,7 @@ def create_fake_base_api_repo(path: Path) -> Path:
     )
     (package_dir / "initialize.py").write_text(
         "from base_api.config import APP_NAME\n"
-        "from base_api.infrastructure import apm, database, security, worker\n\n"
+        "from base_api.infrastructure import apm, database, security, worker, cloud\n\n"
         "# TESTE_API_OPTIONAL: postgresql\n"
         "from base_api.db import db\n"
         "\n"
@@ -479,17 +601,20 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "    \"Alembic>=1\",\n"
         "    \"celery>=5\",\n"
         "    \"redis>=5\",\n"
+        "    \"boto3>=1\",\n"
         "]\n",
         encoding="utf-8",
     )
     (path / "requirements.txt").write_text(
-        "Flask>=3\nSQLAlchemy>=2\npsycopg[binary]>=3\nalembic>=1\ncelery>=5\nredis>=5\n",
+        "Flask>=3\nSQLAlchemy>=2\npsycopg[binary]>=3\nalembic>=1\ncelery>=5\nredis>=5\nboto3>=1\n",
         encoding="utf-8",
     )
     (path / "docker-compose.yml").write_text(
         "services:\n"
         "  web:\n"
-        "    container_name: base-api-web\n",
+        "    container_name: base-api-web\n"
+        "    environment:\n"
+        "      CLOUD_REGION: us-east-1\n",
         encoding="utf-8",
     )
     (path / ".env.example").write_text(
@@ -499,13 +624,17 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/base_api\n"
         "POSTGRES_HOST=localhost\n"
         "REDIS_URL=redis://localhost:6379/1\n"
+        "CLOUD_REGION=us-east-1\n"
+        "SNS_PLATFORM_APPLICATION_ARN=arn:aws:sns:us-east-1:123:app\n"
         "CONTAINER=base-api-web\n",
         encoding="utf-8",
     )
     (path / "AGENTS.md").write_text(
         "# Run Celery worker\n"
         "# BASE_API_OPTIONAL: celery\n"
-        "celery -A base_api.initialize:celery_app worker\n",
+        "celery -A base_api.initialize:celery_app worker\n"
+        "# BASE_API_OPTIONAL: aws\n"
+        "Install boto3 and configure CLOUD_REGION for AWS adapters.\n",
         encoding="utf-8",
     )
     migrations_dir = path / "migrations"
@@ -539,7 +668,18 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "- Remove `base_api/infrastructure/worker.py`.\n"
         "- Remove `celery_app = worker.create_worker(web_app)` from `base_api/initialize.py`.\n"
         "- Remove `celery` from `pyproject.toml`.\n"
-        "- Remove `REDIS_URL` only if no other enabled feature uses Redis.\n",
+        "- Remove `REDIS_URL` only if no other enabled feature uses Redis.\n"
+        "\n"
+        "## AWS Integration Support\n\n"
+        "Files involved:\n"
+        "- `base_api/infrastructure/cloud.py`\n"
+        "- `base_api/infrastructure/config.py`\n"
+        "- `pyproject.toml`\n"
+        "- `.env.example`\n\n"
+        "When disabled:\n"
+        "- Remove `base_api/infrastructure/cloud.py`.\n"
+        "- Remove AWS environment variables from config and environment files.\n"
+        "- Remove `boto3` from `pyproject.toml`.\n",
         encoding="utf-8",
     )
     (path / "base-api.env").write_text("PROJECT=base-api\n", encoding="utf-8")

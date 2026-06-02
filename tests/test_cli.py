@@ -31,6 +31,7 @@ class TestCliArgumentParsing(unittest.TestCase):
         self.assertEqual(args.database, "none")
         self.assertFalse(args.with_celery)
         self.assertFalse(args.with_aws)
+        self.assertIsNone(args.with_cloud)
         self.assertEqual(args.base_repo_url, DEFAULT_BASE_REPO_URL)
         self.assertEqual(args.output_dir, cwd)
 
@@ -43,7 +44,7 @@ class TestCliArgumentParsing(unittest.TestCase):
                 "new-project-api",
                 "--database=postgresql",
                 "--with-celery",
-                "--with-aws",
+                "--with-cloud=aws",
                 "--base-repo-url=https://github.com/acme/base-api.git",
                 f"--output-dir={output_dir}",
             ]
@@ -51,7 +52,8 @@ class TestCliArgumentParsing(unittest.TestCase):
 
         self.assertEqual(args.database, "postgresql")
         self.assertTrue(args.with_celery)
-        self.assertTrue(args.with_aws)
+        self.assertFalse(args.with_aws)
+        self.assertEqual(args.with_cloud, "aws")
         self.assertEqual(args.base_repo_url, "https://github.com/acme/base-api.git")
         self.assertEqual(args.output_dir, output_dir)
 
@@ -90,6 +92,7 @@ class TestCliArgumentParsing(unittest.TestCase):
             self.assertIn("Transformation log:", stdout.getvalue())
             self.assertIn("Database log:", stdout.getvalue())
             self.assertIn("Celery log:", stdout.getvalue())
+            self.assertIn("Cloud log:", stdout.getvalue())
             self.assertIn(f"Created project 'new-project-api' at {generated_project}", stdout.getvalue())
             self.assertTrue((generated_project / "app.py").is_file())
             self.assertFalse((generated_project / ".git").exists())
