@@ -55,6 +55,12 @@ Generate a project with PostgreSQL support:
 api-scaffold new my-api --database=postgresql
 ```
 
+Generate a project with MySQL support:
+
+```bash
+api-scaffold new my-api --database=mysql
+```
+
 Generate a project with PostgreSQL and Celery:
 
 ```bash
@@ -80,7 +86,7 @@ The generated project path is `OUTPUT_DIR/PROJECT_NAME`. The command fails if th
 ## Options
 
 - `PROJECT_NAME`: Required. The generated project directory and distribution name. Use letters, numbers, hyphens, or underscores, starting with a letter or number. Hyphens are allowed.
-- `--database`: Optional. Accepted values are `none` and `postgresql`. Defaults to `none`.
+- `--database`: Optional. Accepted values are `none`, `postgresql`, and `mysql`. Defaults to `none`.
 - `--with-celery`: Optional flag. Keeps Celery worker support when present. If omitted, Celery-specific code is removed.
 - `--with-cloud`: Optional. Currently supports `aws`. If omitted, AWS-specific code is removed. Unsupported values are treated as cloud disabled and reported as warnings.
 - `--base-repo-url`: Optional. Git URL or local git repository path for the template. Defaults to the `BASE_REPO_URL` value in this project’s `.env`.
@@ -101,7 +107,9 @@ The scaffold applies these transformations after cloning:
 - Renames files and directories that include `base_api` or `base-api`.
 - Skips binary files and cache/build/virtualenv directories.
 - Uses `TEMPLATE_FEATURES.md` from the cloned template as guidance for optional feature cleanup.
-- Removes or keeps PostgreSQL files, dependencies, migrations, environment variables, and startup setup based on `--database`.
+- Removes or keeps database files, dependencies, migrations, environment variables, and startup setup based on `--database`.
+- For PostgreSQL, keeps the PostgreSQL driver and writes a `postgresql+psycopg2://` sample `DATABASE_URL`.
+- For MySQL, keeps the MySQL driver and writes a `mysql+pymysql://` sample `DATABASE_URL`.
 - Removes or keeps Celery worker files, dependencies, environment variables, startup setup, and worker docs based on `--with-celery`.
 - Removes or keeps AWS adapter files, dependencies, environment variables, and AWS-only docs/config based on `--with-cloud=aws`.
 - Preserves generic infrastructure folders and Flask bootstrap files such as `initialize.py`; only clearly optional feature code is removed.
@@ -119,7 +127,7 @@ pytest
 flask --app my_api.initialize:web_app run
 ```
 
-If PostgreSQL is enabled, configure `DATABASE_URL` in `.env`, then run migrations if the generated project includes Alembic/Flask-Migrate:
+If PostgreSQL or MySQL is enabled, configure `DATABASE_URL` in `.env`, then run migrations if the generated project includes Alembic/Flask-Migrate:
 
 ```bash
 flask --app my_api.initialize:web_app db upgrade
@@ -163,7 +171,7 @@ Feature files were not removed:
 
 - Check the scaffold log warnings.
 - Confirm the cloned template contains `TEMPLATE_FEATURES.md`.
-- Confirm optional feature blocks are marked in the template, for example `BASE_API_OPTIONAL: postgresql`, `BASE_API_OPTIONAL: celery`, or `BASE_API_OPTIONAL: aws`.
+- Confirm optional feature blocks are marked in the template, for example `BASE_API_OPTIONAL: database`, `BASE_API_OPTIONAL: celery`, or `BASE_API_OPTIONAL: aws`.
 
 Generated imports fail:
 

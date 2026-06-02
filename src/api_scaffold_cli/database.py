@@ -5,27 +5,40 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SUPPORTED_DATABASES = ("none", "postgresql")
+SUPPORTED_DATABASES = ("none", "postgresql", "mysql")
 TEMPLATE_FEATURES_FILE = "TEMPLATE_FEATURES.md"
 DB_DEPENDENCY_NAMES = {
     "alembic",
     "asyncpg",
     "flask-migrate",
     "flask-sqlalchemy",
+    "mysql-connector-python",
+    "mysqlclient",
     "psycopg",
     "psycopg2",
     "psycopg2-binary",
+    "pymysql",
     "sqlalchemy",
     "sqlalchemy-utils",
 }
+DATABASE_DRIVER_DEPENDENCIES = {
+    "postgresql": {"asyncpg", "psycopg", "psycopg2", "psycopg2-binary"},
+    "mysql": {"mysql-connector-python", "mysqlclient", "pymysql"},
+}
+DATABASE_URLS = {
+    "postgresql": "postgresql+psycopg2://user:pass@host/dbname",
+    "mysql": "mysql+pymysql://user:pass@host/dbname",
+}
 ENV_FILE_NAMES = {".env", ".env.example", ".env.sample", "env.example"}
-ENV_KEY_PATTERNS = ("DATABASE", "POSTGRES", "POSTGRESQL", "SQLALCHEMY")
+ENV_KEY_PATTERNS = ("DATABASE", "MYSQL", "POSTGRES", "POSTGRESQL", "SQLALCHEMY")
 DATABASE_BLOCK_START = "# api-scaffold: database start"
 DATABASE_BLOCK_END = "# api-scaffold: database end"
 PROTECTED_STARTUP_FILE_NAMES = {"app.py", "application.py", "factory.py", "initialize.py", "main.py"}
-OPTIONAL_FEATURE_PATTERN = re.compile(r"^\s*#\s*[A-Z0-9_]+_OPTIONAL:\s*postgresql\b", re.IGNORECASE)
+OPTIONAL_FEATURE_PATTERN = re.compile(r"^\s*#\s*[A-Z0-9_]+_OPTIONAL:\s*(postgresql|mysql|database)\b", re.IGNORECASE)
 DATABASE_TEXT_PATTERNS = (
     "database",
+    "mysql",
+    "pymysql",
     "postgres",
     "postgresql",
     "sqlalchemy",
@@ -74,12 +87,14 @@ def apply_database_option(project_dir: Path, database: str) -> DatabaseLog:
     guidance = load_template_feature_guidance(project_dir)
     log.warnings.extend(guidance.warnings)
 
-    if database == "postgresql":
+    if database in ("postgresql", "mysql"):
+        _apply_database_backend_selection(project_dir, database, log)
+        database_name = "PostgreSQL" if database == "postgresql" else "MySQL"
         _append_readme_database_section(
             project_dir,
-            "PostgreSQL",
+            database_name,
             [
-                "This project was generated with PostgreSQL database support.",
+                f"This project was generated with {database_name} database support.",
                 "Configure `DATABASE_URL` in your environment before running the application.",
                 "If Alembic migrations are present, run them before starting the API.",
             ],
@@ -97,7 +112,7 @@ def apply_database_option(project_dir: Path, database: str) -> DatabaseLog:
     for relative_path in guidance.startup_files:
         _remove_database_blocks(project_dir, relative_path, log)
 
-    _remove_postgresql_optional_markers(project_dir, log)
+    _remove_all_database_optional_markers(project_dir, log)
     _remove_database_import_references(project_dir, log)
     _remove_database_dependencies(project_dir, log)
     _remove_database_env_vars(project_dir, log)
@@ -108,6 +123,16 @@ def apply_database_option(project_dir: Path, database: str) -> DatabaseLog:
         log,
     )
     return log
+
+
+def _apply_database_backend_selection(project_dir: Path, database: str, log: DatabaseLog) -> None:
+    for other_database in DATABASE_DRIVER_DEPENDENCIES:
+        if other_database == database:
+            continue
+        _remove_database_optional_markers(project_dir, other_database, log)
+
+    _remove_unselected_database_driver_dependencies(project_dir, database, log)
+    _rewrite_database_urls(project_dir, database, log)
 
 
 def load_template_feature_guidance(project_dir: Path) -> TemplateFeatureGuidance:
@@ -239,10 +264,10 @@ def _remove_marked_blocks(content: str) -> tuple[str, int]:
     return "".join(output_lines), removed_block_count
 
 
-def _remove_postgresql_optional_markers(project_dir: Path, log: DatabaseLog) -> None:
+def _remove_all_database_optional_markers(project_dir: Path, log: DatabaseLog) -> None:
     for path in _iter_candidate_text_files(project_dir):
         content = path.read_text(encoding="utf-8")
-        updated, removed_count = _remove_postgresql_optional_lines(content)
+        updated, removed_count = _remove_database_optional_lines(content)
         if removed_count == 0:
             continue
 
@@ -250,7 +275,23 @@ def _remove_postgresql_optional_markers(project_dir: Path, log: DatabaseLog) -> 
         _record_updated_file(log, str(path.relative_to(project_dir)))
 
 
-def _remove_postgresql_optional_lines(content: str) -> tuple[str, int]:
+def _remove_database_optional_markers(project_dir: Path, database: str, log: DatabaseLog) -> None:
+    pattern = re.compile(rf"^\s*#\s*[A-Z0-9_]+_OPTIONAL:\s*{re.escape(database)}\b", re.IGNORECASE)
+    for path in _iter_candidate_text_files(project_dir):
+        content = path.read_text(encoding="utf-8")
+        updated, removed_count = _remove_database_optional_lines(content, marker_pattern=pattern)
+        if removed_count == 0:
+            continue
+
+        path.write_text(updated, encoding="utf-8")
+        _record_updated_file(log, str(path.relative_to(project_dir)))
+
+
+def _remove_database_optional_lines(
+    content: str,
+    *,
+    marker_pattern: re.Pattern[str] = OPTIONAL_FEATURE_PATTERN,
+) -> tuple[str, int]:
     lines = content.splitlines(keepends=True)
     output_lines: list[str] = []
     removed_count = 0
@@ -258,7 +299,7 @@ def _remove_postgresql_optional_lines(content: str) -> tuple[str, int]:
 
     while index < len(lines):
         line = lines[index]
-        if not OPTIONAL_FEATURE_PATTERN.match(line):
+        if not marker_pattern.match(line):
             output_lines.append(line)
             index += 1
             continue
@@ -359,6 +400,65 @@ def _is_database_dependency_line(line: str) -> bool:
         return False
 
     return match.group(1).lower() in DB_DEPENDENCY_NAMES
+
+
+def _remove_unselected_database_driver_dependencies(project_dir: Path, database: str, log: DatabaseLog) -> None:
+    dependencies_to_remove = set[str]()
+    for driver_database, dependency_names in DATABASE_DRIVER_DEPENDENCIES.items():
+        if driver_database != database:
+            dependencies_to_remove.update(dependency_names)
+
+    for path in project_dir.iterdir():
+        if path.name == "pyproject.toml" or path.name.startswith("requirements"):
+            _remove_named_dependency_lines(project_dir, path, dependencies_to_remove, log)
+
+
+def _remove_named_dependency_lines(
+    project_dir: Path,
+    path: Path,
+    dependency_names: set[str],
+    log: DatabaseLog,
+) -> None:
+    original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    updated_lines: list[str] = []
+
+    for line in original_lines:
+        stripped = line.strip().strip(",").strip("'\"")
+        match = re.match(r"^([A-Za-z0-9_.-]+)", stripped)
+        if match and match.group(1).lower() in dependency_names:
+            continue
+        updated_lines.append(line)
+
+    if updated_lines == original_lines:
+        return
+
+    path.write_text("".join(updated_lines), encoding="utf-8")
+    _record_updated_file(log, str(path.relative_to(project_dir)))
+
+
+def _rewrite_database_urls(project_dir: Path, database: str, log: DatabaseLog) -> None:
+    database_url = DATABASE_URLS[database]
+    for path in project_dir.iterdir():
+        if path.name in ENV_FILE_NAMES or path.name.endswith(".env.example"):
+            _rewrite_database_url_file(project_dir, path, database_url, log)
+
+
+def _rewrite_database_url_file(project_dir: Path, path: Path, database_url: str, log: DatabaseLog) -> None:
+    original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    updated_lines: list[str] = []
+
+    for line in original_lines:
+        if line.strip().startswith("DATABASE_URL="):
+            line_ending = "\n" if line.endswith("\n") else ""
+            updated_lines.append(f"DATABASE_URL={database_url}{line_ending}")
+            continue
+        updated_lines.append(line)
+
+    if updated_lines == original_lines:
+        return
+
+    path.write_text("".join(updated_lines), encoding="utf-8")
+    _record_updated_file(log, str(path.relative_to(project_dir)))
 
 
 def _remove_database_env_vars(project_dir: Path, log: DatabaseLog) -> None:

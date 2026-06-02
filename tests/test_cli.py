@@ -58,7 +58,7 @@ class TestCliArgumentParsing(unittest.TestCase):
         self.assertEqual(args.output_dir, output_dir)
 
     def test_new_accepts_supported_databases(self) -> None:
-        for database in ("none", "postgresql"):
+        for database in ("none", "postgresql", "mysql"):
             with self.subTest(database=database):
                 args = parse_args(["new", "new-project-api", f"--database={database}"])
 
@@ -66,7 +66,7 @@ class TestCliArgumentParsing(unittest.TestCase):
 
     def test_new_rejects_unsupported_database(self) -> None:
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
-            parse_args(["new", "new-project-api", "--database=mysql"])
+            parse_args(["new", "new-project-api", "--database=sqlite"])
 
     @unittest.skipUnless(shutil.which("git"), "git is required for clone integration test")
     def test_new_command_clones_from_local_git_repo(self) -> None:

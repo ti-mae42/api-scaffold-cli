@@ -207,9 +207,60 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
 
             self.assertIn("SQLAlchemy", pyproject)
             self.assertIn("psycopg", requirements)
+            self.assertNotIn("PyMySQL", pyproject)
+            self.assertNotIn("PyMySQL", requirements)
             self.assertIn("DATABASE_URL=", env_example)
+            self.assertIn("postgresql+psycopg2://", env_example)
             self.assertIn("PostgreSQL database support", readme)
             self.assertEqual(result.database_log.database, "postgresql")
+            self.assertEqual(result.database_log.removed_paths, [])
+
+            sys.path.insert(0, str(generated_project))
+            try:
+                module = importlib.import_module("my_awesome_api.app")
+                self.assertEqual(
+                    module.create_app(),
+                    {"name": "My Awesome API", "db_initialized": True},
+                )
+            finally:
+                sys.path.remove(str(generated_project))
+                sys.modules.pop("my_awesome_api.app", None)
+                sys.modules.pop("my_awesome_api.initialize", None)
+                sys.modules.pop("my_awesome_api.db", None)
+                sys.modules.pop("my_awesome_api.config", None)
+                sys.modules.pop("my_awesome_api", None)
+
+    def test_create_project_keeps_database_support_for_mysql(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_repo = create_fake_base_api_repo(tmp_path / "base-api")
+            output_dir = tmp_path / "output"
+
+            result = create_project(
+                project_name="my-awesome-api",
+                output_dir=output_dir,
+                base_repo_url=str(source_repo),
+                database="mysql",
+            )
+            generated_project = result.path
+
+            self.assertTrue((generated_project / "my_awesome_api" / "db.py").is_file())
+            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "database.py").is_file())
+            self.assertTrue((generated_project / "my_awesome_api" / "initialize.py").is_file())
+            self.assertTrue((generated_project / "migrations" / "env.py").is_file())
+
+            pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
+            requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
+            env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
+            readme = (generated_project / "README.md").read_text(encoding="utf-8")
+
+            self.assertIn("SQLAlchemy", pyproject)
+            self.assertIn("PyMySQL", pyproject)
+            self.assertIn("PyMySQL", requirements)
+            self.assertNotIn("psycopg", requirements)
+            self.assertIn("DATABASE_URL=mysql+pymysql://", env_example)
+            self.assertIn("MySQL database support", readme)
+            self.assertEqual(result.database_log.database, "mysql")
             self.assertEqual(result.database_log.removed_paths, [])
 
             sys.path.insert(0, str(generated_project))
@@ -257,6 +308,8 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("SQLAlchemy", pyproject)
             self.assertNotIn("Alembic", pyproject)
             self.assertNotIn("psycopg", requirements)
+            self.assertNotIn("PyMySQL", pyproject)
+            self.assertNotIn("PyMySQL", requirements)
             self.assertNotIn("DATABASE_URL", env_example)
             self.assertNotIn("POSTGRES_HOST", env_example)
             self.assertNotIn("from my_awesome_api.db import db", app_file)
@@ -535,7 +588,7 @@ def create_fake_base_api_repo(path: Path) -> Path:
     (infrastructure_dir / "__init__.py").write_text("", encoding="utf-8")
     (infrastructure_dir / "apm.py").write_text("def create_monitor(app):\n    return app\n", encoding="utf-8")
     (infrastructure_dir / "security.py").write_text("", encoding="utf-8")
-    (infrastructure_dir / "database.py").write_text("# BASE_API_OPTIONAL: postgresql\n", encoding="utf-8")
+    (infrastructure_dir / "database.py").write_text("# BASE_API_OPTIONAL: database\n", encoding="utf-8")
     (infrastructure_dir / "cloud.py").write_text(
         "# BASE_API_OPTIONAL: aws\n\n"
         "class CloudClient:\n"
@@ -567,12 +620,12 @@ def create_fake_base_api_repo(path: Path) -> Path:
     (package_dir / "initialize.py").write_text(
         "from base_api.config import APP_NAME\n"
         "from base_api.infrastructure import apm, database, security, worker, cloud\n\n"
-        "# TESTE_API_OPTIONAL: postgresql\n"
+        "# TESTE_API_OPTIONAL: database\n"
         "from base_api.db import db\n"
         "\n"
         "def create_app():\n"
         "    app = {'name': APP_NAME}\n"
-        "    # TESTE_API_OPTIONAL: postgresql\n"
+        "    # TESTE_API_OPTIONAL: database\n"
         "    db.init_app(app)\n"
         "    return app\n"
         "web_app = create_app()\n\n"
@@ -599,6 +652,8 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "    \"Flask>=3\",\n"
         "    \"SQLAlchemy>=2\",\n"
         "    \"Alembic>=1\",\n"
+        "    \"psycopg2-binary>=2\",\n"
+        "    \"PyMySQL>=1\",\n"
         "    \"celery>=5\",\n"
         "    \"redis>=5\",\n"
         "    \"boto3>=1\",\n"
@@ -606,7 +661,7 @@ def create_fake_base_api_repo(path: Path) -> Path:
         encoding="utf-8",
     )
     (path / "requirements.txt").write_text(
-        "Flask>=3\nSQLAlchemy>=2\npsycopg[binary]>=3\nalembic>=1\ncelery>=5\nredis>=5\nboto3>=1\n",
+        "Flask>=3\nSQLAlchemy>=2\npsycopg2-binary>=2\nPyMySQL>=1\nalembic>=1\ncelery>=5\nredis>=5\nboto3>=1\n",
         encoding="utf-8",
     )
     (path / "docker-compose.yml").write_text(
@@ -621,7 +676,7 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "APP_NAME=Base API\n"
         "APP_MODULE=base_api.app\n"
         "BASE_API_SERVICE_NAME=base-api-web\n"
-        "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/base_api\n"
+        "DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/base_api\n"
         "POSTGRES_HOST=localhost\n"
         "REDIS_URL=redis://localhost:6379/1\n"
         "CLOUD_REGION=us-east-1\n"
@@ -657,6 +712,10 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "- Remove `base_api/infrastructure/database.py`.\n"
         "- Remove `migrations`.\n"
         "- Remove database dependencies from `pyproject.toml`.\n"
+        "\n"
+        "When enabled for MySQL:\n"
+        "- Keep SQLAlchemy and migrations.\n"
+        "- Keep `PyMySQL` and use a `mysql+pymysql://` DATABASE_URL.\n"
         "\n"
         "## Celery Support\n\n"
         "Files involved:\n"

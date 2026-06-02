@@ -9,7 +9,7 @@ from api_scaffold_cli.config import get_default_base_repo_url
 from api_scaffold_cli.scaffold import ScaffoldError, create_project
 
 DEFAULT_BASE_REPO_URL = get_default_base_repo_url()
-VALID_DATABASES = ("none", "postgresql")
+VALID_DATABASES = ("none", "postgresql", "mysql")
 
 
 def build_parser() -> argparse.ArgumentParser:
