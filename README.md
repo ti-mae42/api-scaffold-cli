@@ -1,106 +1,184 @@
 # api-scaffold-cli
 
-Installable command line tool for generating a new API project from a base API repository.
+`api-scaffold-cli` is an installable Python command line tool that generates a new Flask API project from the `base-api` template repository.
 
-The current implementation clones a base API repository into a new project directory, removes the cloned `.git` directory, and renames the template identity to match the requested project name.
+It clones the template into a new project directory, removes the cloned `.git` metadata, renames the template identity to your requested project name, and enables or removes optional template features such as PostgreSQL, Celery, and AWS.
 
-## Installation
+## Requirements
 
-Install locally from this directory:
+- Python 3.10 or newer.
+- Git available on `PATH`.
+- Network access when cloning from GitHub.
+- Access to the base API repository. By default this is `https://github.com/ti-mae42/python-flask-base-api`.
+
+## Installation From Local Source
+
+From this repository:
 
 ```bash
 python -m pip install .
 ```
 
-For development, install in editable mode:
+For development:
 
 ```bash
 python -m pip install -e .
 ```
 
-## Usage
+## Installation From GitHub
 
-Create a new project using default options:
+Install directly from a GitHub repository URL:
 
 ```bash
-api-scaffold new new-project-api
+python -m pip install "git+https://github.com/ti-mae42/api-scaffold-cli.git"
 ```
 
-Create a PostgreSQL project with Celery and AWS options enabled:
+For editable development from GitHub:
 
 ```bash
-api-scaffold new new-project-api --database=postgresql --with-celery --with-cloud=aws
+git clone https://github.com/ti-mae42/api-scaffold-cli.git
+cd api-scaffold-cli
+python -m pip install -e .
 ```
 
-Use a custom base repository and output directory:
+## Basic Usage
+
+Generate a project without database support:
 
 ```bash
-api-scaffold new new-project-api \
-  --base-repo-url=https://github.com/ti-mae42/python-flask-base-api \
-  --output-dir=./generated
+api-scaffold new my-api --database=none
 ```
 
-Clone from a local git repository, useful for testing:
+Generate a project with PostgreSQL support:
 
 ```bash
-api-scaffold new new-project-api \
+api-scaffold new my-api --database=postgresql
+```
+
+Generate a project with PostgreSQL and Celery:
+
+```bash
+api-scaffold new my-api --database=postgresql --with-celery
+```
+
+Generate a project with PostgreSQL, AWS, and Celery:
+
+```bash
+api-scaffold new my-api --database=postgresql --with-cloud=aws --with-celery
+```
+
+Use a custom template repository and output directory:
+
+```bash
+api-scaffold new my-api \
   --base-repo-url=/path/to/local/base-api \
   --output-dir=./generated
 ```
 
-The generated project path will be `OUTPUT_DIR/PROJECT_NAME`. The command fails if that target directory already exists and is not empty.
-
-After cloning, the command replaces template names such as `Base API`, `base_api`, `base-api`, and `BASE_API` with values derived from `PROJECT_NAME`.
-
-Example:
-
-- Project name: `new-project-api`
-- Python package: `new_project_api`
-- Display name: `New Project API`
+The generated project path is `OUTPUT_DIR/PROJECT_NAME`. The command fails if that target directory already exists and is not empty.
 
 ## Options
 
-- `PROJECT_NAME`: Required project name. Use letters, numbers, hyphens, or underscores, starting with a letter or number.
-- `--database`: Database backend. Accepted values are `none` and `postgresql`. Defaults to `none`.
-- `--with-celery`: Enable Celery-related generation flags. Defaults to disabled.
-- `--with-cloud`: Enable cloud integration. Currently supports `aws`. Defaults to disabled.
-- `--with-aws`: Deprecated alias for `--with-cloud=aws`.
-- `--base-repo-url`: Base API repository URL or local git repository path. Defaults to the `BASE_REPO_URL` value in `.env`.
-- `--output-dir`: Directory where the project will be generated. Defaults to the current directory.
+- `PROJECT_NAME`: Required. The generated project directory and distribution name. Use letters, numbers, hyphens, or underscores, starting with a letter or number. Hyphens are allowed.
+- `--database`: Optional. Accepted values are `none` and `postgresql`. Defaults to `none`.
+- `--with-celery`: Optional flag. Keeps Celery worker support when present. If omitted, Celery-specific code is removed.
+- `--with-cloud`: Optional. Currently supports `aws`. If omitted, AWS-specific code is removed. Unsupported values are treated as cloud disabled and reported as warnings.
+- `--base-repo-url`: Optional. Git URL or local git repository path for the template. Defaults to the `BASE_REPO_URL` value in this project’s `.env`.
+- `--output-dir`: Optional. Directory where the generated project directory is created. Defaults to the current directory.
 
-## Configuration
+`--with-aws` is still accepted as a deprecated alias for `--with-cloud=aws`.
 
-The default base repository is configured in `.env`:
+## Transformations
 
-```env
-BASE_REPO_URL=https://github.com/ti-mae42/python-flask-base-api
+The scaffold applies these transformations after cloning:
+
+- Removes the cloned template `.git` directory.
+- Renames template identity strings:
+  - `Base API` becomes a display name derived from `PROJECT_NAME`, such as `My API`.
+  - `base_api` becomes a safe Python package name, such as `my_api`.
+  - `base-api` becomes the requested project name, such as `my-api`.
+  - `BASE_API` becomes an uppercase env/config prefix, such as `MY_API`.
+- Renames files and directories that include `base_api` or `base-api`.
+- Skips binary files and cache/build/virtualenv directories.
+- Uses `TEMPLATE_FEATURES.md` from the cloned template as guidance for optional feature cleanup.
+- Removes or keeps PostgreSQL files, dependencies, migrations, environment variables, and startup setup based on `--database`.
+- Removes or keeps Celery worker files, dependencies, environment variables, startup setup, and worker docs based on `--with-celery`.
+- Removes or keeps AWS adapter files, dependencies, environment variables, and AWS-only docs/config based on `--with-cloud=aws`.
+- Preserves generic infrastructure folders and Flask bootstrap files such as `initialize.py`; only clearly optional feature code is removed.
+- Prints transformation, database, Celery, and cloud logs, including warnings when a cleanup cannot be performed safely.
+
+## Generated Project Checklist
+
+After generating a project:
+
+```bash
+cd my-api
+cp .env.sample .env
+python -m pip install -e .
+pytest
+flask --app my_api.initialize:web_app run
 ```
 
-## Database Mode
+If PostgreSQL is enabled, configure `DATABASE_URL` in `.env`, then run migrations if the generated project includes Alembic/Flask-Migrate:
 
-`--database=postgresql` keeps database-related files, PostgreSQL dependencies, environment variables, and Alembic/migration setup when present. It also adds PostgreSQL setup notes to the generated README.
+```bash
+flask --app my_api.initialize:web_app db upgrade
+```
 
-`--database=none` removes database-specific files listed by the cloned template's `TEMPLATE_FEATURES.md`, removes marked optional database startup blocks, cleans common database dependencies and env example variables, and adds a README note that the project was generated without database support. Flask bootstrap files such as `initialize.py` are preserved even if listed in `TEMPLATE_FEATURES.md`; only their marked database setup blocks are removed.
+If Celery is enabled, configure the worker broker variables such as `REDIS_URL`, then start the worker:
 
-If a database file or startup block cannot be removed safely, the CLI leaves it in place and prints a warning in the database log.
+```bash
+celery -A my_api.initialize:celery_app worker
+```
 
-## Celery Mode
+## Known Limitations
 
-`--with-celery` keeps Celery worker files, Celery and Redis dependencies, worker environment variables, and worker startup documentation when present. It also adds generated README notes for starting a worker.
+- Only the `base-api` template shape is currently supported.
+- Cloud support is AWS-only for now.
+- Optional feature cleanup depends on `TEMPLATE_FEATURES.md` and optional marker comments in the template.
+- The tool avoids unsafe edits. If a file cannot be safely removed or edited, it is kept and a warning is printed.
+- Dependency cleanup is line-based for `pyproject.toml` and requirements files. Complex dependency declarations may require manual review.
+- The generated project is not automatically committed to git.
+- The scaffold does not install generated project dependencies or run generated project tests automatically.
 
-When `--with-celery` is omitted, the scaffold removes Celery-specific files listed by `TEMPLATE_FEATURES.md`, removes marked optional Celery setup from files such as `initialize.py`, removes Celery-specific worker imports, cleans Celery dependencies and env example variables, removes Celery worker commands from docs/scripts when they are clearly Celery-specific, and adds a README note that the project was generated without Celery support.
+## Troubleshooting
 
-Generic worker or async settings are preserved unless they clearly reference Celery.
+`git clone` fails:
 
-## Cloud Mode
+- Confirm Git is installed and available on `PATH`.
+- Confirm `--base-repo-url` is reachable.
+- For private repositories, confirm your SSH key or Git credentials work outside the scaffold command.
 
-`--with-cloud=aws` keeps AWS-specific adapters, AWS dependencies such as `boto3`, AWS environment variables, and AWS setup notes when present. It also adds generated README notes for generic AWS configuration.
+Target directory already exists:
 
-When `--with-cloud` is omitted, AWS-specific files listed by `TEMPLATE_FEATURES.md` are removed, AWS optional marker lines are cleaned from config files, AWS dependencies and env vars are removed, clearly AWS-only Docker/CI/doc lines are cleaned, and the README notes that the project was generated without AWS support.
+- The command refuses to write into an existing non-empty target directory.
+- Choose a different `PROJECT_NAME`, set a different `--output-dir`, or clear the existing directory yourself.
 
-Cloud providers other than `aws` are currently treated as disabled and reported as warnings in the cloud log. Generic infrastructure folders are preserved.
+Invalid project name:
+
+- Use only letters, numbers, hyphens, or underscores.
+- Start the name with a letter or number.
+
+Feature files were not removed:
+
+- Check the scaffold log warnings.
+- Confirm the cloned template contains `TEMPLATE_FEATURES.md`.
+- Confirm optional feature blocks are marked in the template, for example `BASE_API_OPTIONAL: postgresql`, `BASE_API_OPTIONAL: celery`, or `BASE_API_OPTIONAL: aws`.
+
+Generated imports fail:
+
+- Check whether an optional feature was disabled while application code still imports that feature.
+- Review files listed in scaffold warnings.
+- Re-run generation with the feature enabled if the project needs it.
+
+System Python refuses installation:
+
+- Some Linux distributions protect system Python environments.
+- Use a virtual environment, `pipx`, or an editable install inside a project-specific environment.
 
 ## Tests
+
+Run the CLI test suite:
 
 ```bash
 python -m unittest discover
