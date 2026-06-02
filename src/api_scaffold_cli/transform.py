@@ -8,6 +8,15 @@ TEMPLATE_DISPLAY_NAME = "Base API"
 TEMPLATE_PACKAGE_NAME = "base_api"
 TEMPLATE_PROJECT_NAME = "base-api"
 TEMPLATE_ENV_NAME = "BASE_API"
+TEMPLATE_README_DESCRIPTION = """Reusable Flask API template for starting RESTful JSON service projects. It
+provides a small generic shell with Flask-RESTful routing, camelCase JSON
+request/response helpers, configuration loading, security primitives,
+SQLAlchemy and Alembic foundation, optional Celery worker setup, and optional
+AWS adapters.
+
+The template is intentionally business-domain free. New projects should add
+their own domain modules, repositories, resources, schemas, validators, and
+migrations after the scaffold step."""
 SKIPPED_DIRECTORY_NAMES = {
     ".git",
     ".hg",
@@ -114,12 +123,27 @@ def _replace_template_identity_in_file(
     updated = updated.replace(TEMPLATE_PACKAGE_NAME, names.package_name)
     updated = updated.replace(TEMPLATE_PROJECT_NAME, names.project_name)
     updated = updated.replace(TEMPLATE_ENV_NAME, names.package_name.upper())
+    if path.name == "README.md":
+        updated = _replace_readme_template_description(updated, names)
 
     if updated == content:
         return
 
     path.write_text(updated, encoding="utf-8")
     log.file_updates.append(str(path.relative_to(project_dir)))
+
+
+def _replace_readme_template_description(content: str, names: ProjectNames) -> str:
+    replacement = f"""<your-project-description>
+
+{names.display_name} is a Flask RESTful JSON API service. Use this README to
+document what this project does, the domain it owns, the resources it exposes,
+and the operational setup needed to run it.
+
+The scaffold includes Flask-RESTful routing, camelCase JSON request/response
+helpers, configuration loading, security primitives, and any optional
+infrastructure selected during project generation."""
+    return content.replace(TEMPLATE_README_DESCRIPTION, replacement)
 
 
 def _rename_template_identity_paths(

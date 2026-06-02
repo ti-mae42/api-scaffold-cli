@@ -61,8 +61,26 @@ def apply_cloud_option(project_dir: Path, cloud_provider: str | None) -> CloudLo
             project_dir,
             [
                 "This project was generated with AWS integration support.",
-                "Configure AWS credentials using your runtime environment or IAM role.",
-                "Set AWS-related environment variables such as `CLOUD_REGION` when required by the application.",
+                "",
+                "Configure AWS credentials with one of the standard AWS SDK mechanisms.",
+                "For local development, use an AWS profile or exported credentials:",
+                "",
+                "```sh",
+                "aws configure",
+                "export AWS_PROFILE=default",
+                "aws sts get-caller-identity",
+                "```",
+                "",
+                "Configure the AWS environment used by the API:",
+                "",
+                "```sh",
+                "cp .env.example .env",
+                "printf 'CLOUD_REGION=us-east-1\\n' >> .env",
+                "printf 'SNS_PLATFORM_APPLICATION_ARN=arn:aws:sns:us-east-1:123456789012:app/GCM/example\\n' >> .env",
+                "```",
+                "",
+                "When running in AWS, prefer an IAM role for the runtime instead of static access keys.",
+                "If static credentials are required for local development, set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN` in your shell or credential store.",
             ],
             log,
             heading="AWS",
@@ -77,12 +95,6 @@ def apply_cloud_option(project_dir: Path, cloud_provider: str | None) -> CloudLo
     _remove_aws_dependencies(project_dir, log)
     _remove_aws_env_vars(project_dir, log)
     _remove_aws_docs_and_configs(project_dir, log)
-    _append_readme_cloud_section(
-        project_dir,
-        ["This project was generated without AWS support."],
-        log,
-        heading="AWS",
-    )
     return log
 
 

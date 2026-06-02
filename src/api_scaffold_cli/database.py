@@ -90,13 +90,44 @@ def apply_database_option(project_dir: Path, database: str) -> DatabaseLog:
     if database in ("postgresql", "mysql"):
         _apply_database_backend_selection(project_dir, database, log)
         database_name = "PostgreSQL" if database == "postgresql" else "MySQL"
+        database_url = DATABASE_URLS[database]
+        package_name = _derive_package_name(project_dir)
         _append_readme_database_section(
             project_dir,
-            database_name,
+            "Database",
             [
                 f"This project was generated with {database_name} database support.",
-                "Configure `DATABASE_URL` in your environment before running the application.",
-                "If Alembic migrations are present, run them before starting the API.",
+                "",
+                "Configure the database connection:",
+                "",
+                "```sh",
+                "cp .env.example .env",
+                f"# Edit .env and set DATABASE_URL={database_url}",
+                "```",
+                "",
+                "Before creating migrations, import your repository model modules in",
+                f"`{package_name}/infrastructure/database.py` inside `register_migration` so",
+                "Flask-Migrate can discover the SQLAlchemy metadata:",
+                "",
+                "```python",
+                "def register_migration(web_app):",
+                "    # Update the line below for the migrate command to work.",
+                f"    # from {package_name}.repositories import your_repositories_module  # noqa: F401",
+                "    return Migrate(web_app, orm)",
+                "```",
+                "",
+                "Run existing migrations before starting the API:",
+                "",
+                "```sh",
+                f"flask --app {package_name}.initialize:web_app db upgrade",
+                "```",
+                "",
+                "Create and apply a new migration after changing models:",
+                "",
+                "```sh",
+                f'flask --app {package_name}.initialize:web_app db migrate -m "describe change"',
+                f"flask --app {package_name}.initialize:web_app db upgrade",
+                "```",
             ],
             log,
         )
@@ -116,13 +147,11 @@ def apply_database_option(project_dir: Path, database: str) -> DatabaseLog:
     _remove_database_import_references(project_dir, log)
     _remove_database_dependencies(project_dir, log)
     _remove_database_env_vars(project_dir, log)
-    _append_readme_database_section(
-        project_dir,
-        "Database",
-        ["This project was generated without database support."],
-        log,
-    )
     return log
+
+
+def _derive_package_name(project_dir: Path) -> str:
+    return project_dir.name.replace("-", "_").lower()
 
 
 def _apply_database_backend_selection(project_dir: Path, database: str, log: DatabaseLog) -> None:

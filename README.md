@@ -127,7 +127,7 @@ pytest
 flask --app my_api.initialize:web_app run
 ```
 
-If PostgreSQL or MySQL is enabled, configure `DATABASE_URL` in `.env`, then run migrations if the generated project includes Alembic/Flask-Migrate:
+If PostgreSQL or MySQL is enabled, configure `DATABASE_URL` in `.env`, then run migrations with Flask-Migrate:
 
 ```bash
 flask --app my_api.initialize:web_app db upgrade

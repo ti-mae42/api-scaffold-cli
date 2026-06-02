@@ -140,6 +140,7 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertFalse((generated_project / ".git").exists())
 
             readme = (generated_project / "README.md").read_text(encoding="utf-8")
+            architecture = (generated_project / "ARCHITECTURE.md").read_text(encoding="utf-8")
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
             docker_compose = (generated_project / "docker-compose.yml").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
@@ -147,6 +148,13 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
 
             self.assertIn("# My Awesome API", readme)
+            self.assertIn("<your-project-description>", readme)
+            self.assertIn("My Awesome API is a Flask RESTful JSON API service.", readme)
+            self.assertNotIn("Reusable Flask API template", readme)
+            self.assertNotIn("business-domain free", readme)
+            self.assertNotIn("after the scaffold step", readme)
+            self.assertIn("# My Awesome API Architecture", architecture)
+            self.assertIn("Package: my_awesome_api", architecture)
             self.assertIn('name = "my-awesome-api"', pyproject)
             self.assertIn("container_name: my-awesome-api-web", docker_compose)
             self.assertIn("APP_NAME=My Awesome API", env_example)
@@ -212,6 +220,17 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("DATABASE_URL=", env_example)
             self.assertIn("postgresql+psycopg2://", env_example)
             self.assertIn("PostgreSQL database support", readme)
+            self.assertIn("my_awesome_api/infrastructure/database.py", readme)
+            self.assertIn(
+                "from my_awesome_api.repositories import your_repositories_module  # noqa: F401",
+                readme,
+            )
+            self.assertIn("flask --app my_awesome_api.initialize:web_app db upgrade", readme)
+            self.assertIn(
+                'flask --app my_awesome_api.initialize:web_app db migrate -m "describe change"',
+                readme,
+            )
+            self.assertNotIn("alembic upgrade head", readme)
             self.assertEqual(result.database_log.database, "postgresql")
             self.assertEqual(result.database_log.removed_paths, [])
 
@@ -318,7 +337,8 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("from my_awesome_api.infrastructure import apm, database, security", initialize_file)
             self.assertNotIn("db.init_app", app_file)
             self.assertNotIn("db.init_app", initialize_file)
-            self.assertIn("without database support", readme)
+            self.assertNotIn("## Database", readme)
+            self.assertNotIn("without database support", readme)
             self.assertIn("my_awesome_api/db.py", result.database_log.removed_paths)
             self.assertIn("my_awesome_api/infrastructure/database.py", result.database_log.removed_paths)
             self.assertNotIn("my_awesome_api/initialize.py", result.database_log.removed_paths)
@@ -365,6 +385,9 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("REDIS_URL=", env_example)
             self.assertIn("celery_app = worker.create_worker(web_app)", initialize_file)
             self.assertIn("Celery worker support", readme)
+            self.assertIn("CELERY_BROKER_URL=redis://localhost:6379/1", readme)
+            self.assertIn("CELERY_RESULT_BACKEND=redis://localhost:6379/1", readme)
+            self.assertIn("celery -A my_awesome_api.initialize:celery_app worker --loglevel=info", readme)
             self.assertEqual(result.celery_log.enabled, True)
             self.assertEqual(result.celery_log.removed_paths, [])
 
@@ -411,7 +434,8 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("celery_app", initialize_file)
             self.assertNotIn("celery -A", readme)
             self.assertNotIn("celery -A", agents)
-            self.assertIn("without Celery support", readme)
+            self.assertNotIn("## Celery", readme)
+            self.assertNotIn("without Celery support", readme)
             self.assertIn("my_awesome_api/infrastructure/worker.py", result.celery_log.removed_paths)
             self.assertTrue((generated_project / "pyproject.toml").is_file())
 
@@ -456,6 +480,9 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("SNS_PLATFORM_APPLICATION_ARN=", env_example)
             self.assertIn("from my_awesome_api.infrastructure import apm, security, cloud", initialize_file)
             self.assertIn("AWS integration support", readme)
+            self.assertIn("aws sts get-caller-identity", readme)
+            self.assertIn("CLOUD_REGION=us-east-1", readme)
+            self.assertIn("AWS_ACCESS_KEY_ID", readme)
             self.assertEqual(result.cloud_log.provider, "aws")
             self.assertTrue(result.cloud_log.enabled)
             self.assertEqual(result.cloud_log.removed_paths, [])
@@ -503,7 +530,8 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("cloud", initialize_file)
             self.assertNotIn("boto3", agents)
             self.assertNotIn("CLOUD_REGION", docker_compose)
-            self.assertIn("without AWS support", readme)
+            self.assertNotIn("## AWS", readme)
+            self.assertNotIn("without AWS support", readme)
             self.assertIn("my_awesome_api/infrastructure/cloud.py", result.cloud_log.removed_paths)
             self.assertIsNone(result.cloud_log.provider)
             self.assertFalse(result.cloud_log.enabled)
@@ -642,7 +670,20 @@ def create_fake_base_api_repo(path: Path) -> Path:
         encoding="utf-8",
     )
     (path / "README.md").write_text(
-        "# Base API\n\nDocker service: base-api-web\nPackage: base_api\n",
+        "# Base API\n\n"
+        "Reusable Flask API template for starting RESTful JSON service projects. It\n"
+        "provides a small generic shell with Flask-RESTful routing, camelCase JSON\n"
+        "request/response helpers, configuration loading, security primitives,\n"
+        "SQLAlchemy and Alembic foundation, optional Celery worker setup, and optional\n"
+        "AWS adapters.\n\n"
+        "The template is intentionally business-domain free. New projects should add\n"
+        "their own domain modules, repositories, resources, schemas, validators, and\n"
+        "migrations after the scaffold step.\n\n"
+        "Docker service: base-api-web\nPackage: base_api\n",
+        encoding="utf-8",
+    )
+    (path / "ARCHITECTURE.md").write_text(
+        "# Base API Architecture\n\nPackage: base_api\nProject: base-api\n",
         encoding="utf-8",
     )
     (path / "pyproject.toml").write_text(

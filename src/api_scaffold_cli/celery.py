@@ -50,11 +50,32 @@ def apply_celery_option(project_dir: Path, with_celery: bool) -> CeleryLog:
     log.warnings.extend(guidance.warnings)
 
     if with_celery:
+        package_name = _derive_package_name(project_dir)
         _append_readme_celery_section(
             project_dir,
             [
                 "This project was generated with Celery worker support.",
-                "Start a worker with `celery -A <package>.initialize:celery_app worker` after configuring Redis.",
+                "",
+                "Configure the broker and result backend:",
+                "",
+                "```sh",
+                "cp .env.example .env",
+                "printf 'REDIS_URL=redis://localhost:6379/1\\n' >> .env",
+                "printf 'CELERY_BROKER_URL=redis://localhost:6379/1\\n' >> .env",
+                "printf 'CELERY_RESULT_BACKEND=redis://localhost:6379/1\\n' >> .env",
+                "```",
+                "",
+                "Start Redis locally if you do not already have a broker:",
+                "",
+                "```sh",
+                f"docker run --name {project_dir.name}-redis -p 6379:6379 -d redis:7-alpine",
+                "```",
+                "",
+                "Start a Celery worker:",
+                "",
+                "```sh",
+                f"celery -A {package_name}.initialize:celery_app worker --loglevel=info",
+                "```",
             ],
             log,
             heading="Celery",
@@ -69,13 +90,11 @@ def apply_celery_option(project_dir: Path, with_celery: bool) -> CeleryLog:
     _remove_celery_dependencies(project_dir, log)
     _remove_celery_env_vars(project_dir, log)
     _remove_celery_docs_and_commands(project_dir, log)
-    _append_readme_celery_section(
-        project_dir,
-        ["This project was generated without Celery support."],
-        log,
-        heading="Celery",
-    )
     return log
+
+
+def _derive_package_name(project_dir: Path) -> str:
+    return project_dir.name.replace("-", "_").lower()
 
 
 def load_celery_feature_guidance(project_dir: Path) -> CeleryFeatureGuidance:
