@@ -354,7 +354,12 @@ def _remove_celery_markdown_sections(content: str) -> str:
             index += 1
 
         section_text = "".join(section_lines).lower()
-        if "celery" in section_text and "worker" in section_text:
+        heading_text = line.lstrip("#").strip().lower()
+        is_celery_heading = "celery" in heading_text or "worker" in heading_text
+        is_nested_celery_section = (
+            heading_level > 1 and "celery" in section_text and "worker" in section_text
+        )
+        if is_celery_heading or is_nested_celery_section:
             continue
 
         output_lines.extend(section_lines)

@@ -150,9 +150,12 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("# My Awesome API", readme)
             self.assertIn("<your-project-description>", readme)
             self.assertIn("My Awesome API is a Flask RESTful JSON API service.", readme)
+            self.assertIn("Docker service: my-awesome-api-web", readme)
+            self.assertIn("Package: my_awesome_api", readme)
             self.assertNotIn("Reusable Flask API template", readme)
             self.assertNotIn("business-domain free", readme)
             self.assertNotIn("after the scaffold step", readme)
+            self.assertNotIn("celery -A", readme)
             self.assertIn("# My Awesome API Architecture", architecture)
             self.assertIn("Package: my_awesome_api", architecture)
             self.assertIn('name = "my-awesome-api"', pyproject)
@@ -279,6 +282,9 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("psycopg", requirements)
             self.assertIn("DATABASE_URL=mysql+pymysql://", env_example)
             self.assertIn("MySQL database support", readme)
+            self.assertIn("Docker service: my-awesome-api-web", readme)
+            self.assertIn("Package: my_awesome_api", readme)
+            self.assertNotIn("celery -A", readme)
             self.assertEqual(result.database_log.database, "mysql")
             self.assertEqual(result.database_log.removed_paths, [])
 
@@ -679,6 +685,8 @@ def create_fake_base_api_repo(path: Path) -> Path:
         "The template is intentionally business-domain free. New projects should add\n"
         "their own domain modules, repositories, resources, schemas, validators, and\n"
         "migrations after the scaffold step.\n\n"
+        "This template can run a Celery worker when that optional feature is kept.\n"
+        "celery -A base_api.initialize:celery_app worker\n\n"
         "Docker service: base-api-web\nPackage: base_api\n",
         encoding="utf-8",
     )
