@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "api-scaffold-cli"
+version = "0.1.0"
+description = "CLI tool for generating API projects from a base repository."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "mae42" }
+]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = []
+
+[project.scripts]
+api-scaffold = "api_scaffold_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
