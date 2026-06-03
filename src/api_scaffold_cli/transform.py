@@ -61,13 +61,21 @@ class TransformationLog:
 
 def derive_project_names(project_name: str) -> ProjectNames:
     parts = [part for part in project_name.replace("_", "-").split("-") if part]
-    package_name = project_name.replace("-", "_").lower()
+    package_name = derive_package_name(project_name)
     display_name = " ".join(_display_word(part) for part in parts)
     return ProjectNames(
         project_name=project_name,
         package_name=package_name,
         display_name=display_name,
     )
+
+
+def derive_package_name(project_name: str) -> str:
+    parts = [part for part in project_name.replace("-", "_").lower().split("_") if part]
+    if len(parts) > 1 and parts[-1] == "api":
+        parts = parts[:-1]
+
+    return "_".join(parts)
 
 
 def transform_project_identity(project_dir: Path, project_name: str) -> TransformationLog:

@@ -5,6 +5,8 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from api_scaffold_cli.transform import derive_package_name
+
 
 TEMPLATE_FEATURES_FILE = "TEMPLATE_FEATURES.md"
 CELERY_DEPENDENCY_NAMES = {"celery", "redis"}
@@ -94,7 +96,7 @@ def apply_celery_option(project_dir: Path, with_celery: bool) -> CeleryLog:
 
 
 def _derive_package_name(project_dir: Path) -> str:
-    return project_dir.name.replace("-", "_").lower()
+    return derive_package_name(project_dir.name)
 
 
 def load_celery_feature_guidance(project_dir: Path) -> CeleryFeatureGuidance:

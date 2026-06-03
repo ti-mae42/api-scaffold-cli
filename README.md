@@ -101,9 +101,9 @@ The scaffold applies these transformations after cloning:
 - Removes the cloned template `.git` directory.
 - Renames template identity strings:
   - `Base API` becomes a display name derived from `PROJECT_NAME`, such as `My API`.
-  - `base_api` becomes a safe Python package name, such as `my_api`.
+  - `base_api` becomes a safe Python package name, such as `my`. A trailing `api` segment is omitted from the package name.
   - `base-api` becomes the requested project name, such as `my-api`.
-  - `BASE_API` becomes an uppercase env/config prefix, such as `MY_API`.
+  - `BASE_API` becomes an uppercase env/config prefix, such as `MY`.
 - Renames files and directories that include `base_api` or `base-api`.
 - Skips binary files and cache/build/virtualenv directories.
 - Uses `TEMPLATE_FEATURES.md` from the cloned template as guidance for optional feature cleanup.
@@ -124,19 +124,19 @@ cd my-api
 cp .env.sample .env
 python -m pip install -e .
 pytest
-flask --app my_api.initialize:web_app run
+flask --app my.initialize:web_app run
 ```
 
 If PostgreSQL or MySQL is enabled, configure `DATABASE_URL` in `.env`, then run migrations with Flask-Migrate:
 
 ```bash
-flask --app my_api.initialize:web_app db upgrade
+flask --app my.initialize:web_app db upgrade
 ```
 
 If Celery is enabled, configure the worker broker variables such as `REDIS_URL`, then start the worker:
 
 ```bash
-celery -A my_api.initialize:celery_app worker
+celery -A my.initialize:celery_app worker
 ```
 
 ## Known Limitations

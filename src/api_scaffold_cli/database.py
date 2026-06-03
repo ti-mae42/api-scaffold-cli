@@ -5,6 +5,8 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from api_scaffold_cli.transform import derive_package_name
+
 SUPPORTED_DATABASES = ("none", "postgresql", "mysql")
 TEMPLATE_FEATURES_FILE = "TEMPLATE_FEATURES.md"
 DB_DEPENDENCY_NAMES = {
@@ -151,7 +153,7 @@ def apply_database_option(project_dir: Path, database: str) -> DatabaseLog:
 
 
 def _derive_package_name(project_dir: Path) -> str:
-    return project_dir.name.replace("-", "_").lower()
+    return derive_package_name(project_dir.name)
 
 
 def _apply_database_backend_selection(project_dir: Path, database: str, log: DatabaseLog) -> None:

@@ -61,8 +61,15 @@ class TestNameConversion(unittest.TestCase):
         names = derive_project_names("new-project-api")
 
         self.assertEqual(names.project_name, "new-project-api")
-        self.assertEqual(names.package_name, "new_project_api")
+        self.assertEqual(names.package_name, "new_project")
         self.assertEqual(names.display_name, "New Project API")
+
+    def test_derive_project_names_drops_trailing_api_from_package_name(self) -> None:
+        names = derive_project_names("teste-api")
+
+        self.assertEqual(names.project_name, "teste-api")
+        self.assertEqual(names.package_name, "teste")
+        self.assertEqual(names.display_name, "Teste API")
 
     def test_derive_project_names_handles_underscores_and_initialisms(self) -> None:
         names = derive_project_names("aws_api_cli")
@@ -135,7 +142,7 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertTrue((generated_project / "my_awesome_api" / "__init__.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "__init__.py").is_file())
             self.assertFalse((generated_project / "base_api").exists())
             self.assertFalse((generated_project / ".git").exists())
 
@@ -144,29 +151,29 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
             docker_compose = (generated_project / "docker-compose.yml").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
-            app_file = (generated_project / "my_awesome_api" / "app.py").read_text(encoding="utf-8")
-            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            app_file = (generated_project / "my_awesome" / "app.py").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome" / "initialize.py").read_text(encoding="utf-8")
 
             self.assertIn("# My Awesome API", readme)
             self.assertIn("<your-project-description>", readme)
             self.assertIn("My Awesome API is a Flask RESTful JSON API service.", readme)
             self.assertIn("Docker service: my-awesome-api-web", readme)
-            self.assertIn("Package: my_awesome_api", readme)
+            self.assertIn("Package: my_awesome", readme)
             self.assertNotIn("Reusable Flask API template", readme)
             self.assertNotIn("business-domain free", readme)
             self.assertNotIn("after the scaffold step", readme)
             self.assertNotIn("celery -A", readme)
             self.assertIn("# My Awesome API Architecture", architecture)
-            self.assertIn("Package: my_awesome_api", architecture)
+            self.assertIn("Package: my_awesome", architecture)
             self.assertIn('name = "my-awesome-api"', pyproject)
             self.assertIn("container_name: my-awesome-api-web", docker_compose)
             self.assertIn("APP_NAME=My Awesome API", env_example)
-            self.assertIn("MY_AWESOME_API_SERVICE_NAME=my-awesome-api-web", env_example)
-            self.assertIn("from my_awesome_api.config import APP_NAME", app_file)
-            self.assertIn("from my_awesome_api.initialize import create_app", app_file)
-            self.assertNotIn("from my_awesome_api.db import db", initialize_file)
-            self.assertIn("from my_awesome_api.infrastructure import apm, security", initialize_file)
-            self.assertNotIn("from my_awesome_api.infrastructure import apm, database, security", initialize_file)
+            self.assertIn("MY_AWESOME_SERVICE_NAME=my-awesome-api-web", env_example)
+            self.assertIn("from my_awesome.config import APP_NAME", app_file)
+            self.assertIn("from my_awesome.initialize import create_app", app_file)
+            self.assertNotIn("from my_awesome.db import db", initialize_file)
+            self.assertIn("from my_awesome.infrastructure import apm, security", initialize_file)
+            self.assertNotIn("from my_awesome.infrastructure import apm, database, security", initialize_file)
             self.assertNotIn("worker", initialize_file)
             self.assertNotIn("celery_app", initialize_file)
             self.assertNotIn("db.init_app", initialize_file)
@@ -177,19 +184,19 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             self.assert_template_identity_removed(generated_project)
             self.assertIn("README.md", result.transformation_log.file_updates)
-            self.assertIn("base_api -> my_awesome_api", result.transformation_log.path_renames)
+            self.assertIn("base_api -> my_awesome", result.transformation_log.path_renames)
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.app")
+                module = importlib.import_module("my_awesome.app")
                 self.assertEqual(module.get_app_name(), "My Awesome API")
                 self.assertEqual(module.create_app(), {"name": "My Awesome API"})
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.app", None)
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.app", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_keeps_database_support_for_postgresql(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -205,9 +212,9 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertTrue((generated_project / "my_awesome_api" / "db.py").is_file())
-            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "database.py").is_file())
-            self.assertTrue((generated_project / "my_awesome_api" / "initialize.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "db.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "infrastructure" / "database.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "initialize.py").is_file())
             self.assertTrue((generated_project / "migrations" / "env.py").is_file())
             self.assertTrue((generated_project / "alembic.ini").is_file())
 
@@ -223,14 +230,14 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("DATABASE_URL=", env_example)
             self.assertIn("postgresql+psycopg2://", env_example)
             self.assertIn("PostgreSQL database support", readme)
-            self.assertIn("my_awesome_api/infrastructure/database.py", readme)
+            self.assertIn("my_awesome/infrastructure/database.py", readme)
             self.assertIn(
-                "from my_awesome_api.repositories import your_repositories_module  # noqa: F401",
+                "from my_awesome.repositories import your_repositories_module  # noqa: F401",
                 readme,
             )
-            self.assertIn("flask --app my_awesome_api.initialize:web_app db upgrade", readme)
+            self.assertIn("flask --app my_awesome.initialize:web_app db upgrade", readme)
             self.assertIn(
-                'flask --app my_awesome_api.initialize:web_app db migrate -m "describe change"',
+                'flask --app my_awesome.initialize:web_app db migrate -m "describe change"',
                 readme,
             )
             self.assertNotIn("alembic upgrade head", readme)
@@ -239,18 +246,18 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.app")
+                module = importlib.import_module("my_awesome.app")
                 self.assertEqual(
                     module.create_app(),
                     {"name": "My Awesome API", "db_initialized": True},
                 )
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.app", None)
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.db", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.app", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.db", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_keeps_database_support_for_mysql(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -266,9 +273,9 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertTrue((generated_project / "my_awesome_api" / "db.py").is_file())
-            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "database.py").is_file())
-            self.assertTrue((generated_project / "my_awesome_api" / "initialize.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "db.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "infrastructure" / "database.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "initialize.py").is_file())
             self.assertTrue((generated_project / "migrations" / "env.py").is_file())
 
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
@@ -283,25 +290,25 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("DATABASE_URL=mysql+pymysql://", env_example)
             self.assertIn("MySQL database support", readme)
             self.assertIn("Docker service: my-awesome-api-web", readme)
-            self.assertIn("Package: my_awesome_api", readme)
+            self.assertIn("Package: my_awesome", readme)
             self.assertNotIn("celery -A", readme)
             self.assertEqual(result.database_log.database, "mysql")
             self.assertEqual(result.database_log.removed_paths, [])
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.app")
+                module = importlib.import_module("my_awesome.app")
                 self.assertEqual(
                     module.create_app(),
                     {"name": "My Awesome API", "db_initialized": True},
                 )
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.app", None)
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.db", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.app", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.db", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_removes_database_support_for_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -317,9 +324,9 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertFalse((generated_project / "my_awesome_api" / "db.py").exists())
-            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "database.py").exists())
-            self.assertTrue((generated_project / "my_awesome_api" / "initialize.py").is_file())
+            self.assertFalse((generated_project / "my_awesome" / "db.py").exists())
+            self.assertFalse((generated_project / "my_awesome" / "infrastructure" / "database.py").exists())
+            self.assertTrue((generated_project / "my_awesome" / "initialize.py").is_file())
             self.assertFalse((generated_project / "migrations").exists())
             self.assertFalse((generated_project / "alembic.ini").exists())
 
@@ -327,8 +334,8 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
             readme = (generated_project / "README.md").read_text(encoding="utf-8")
-            app_file = (generated_project / "my_awesome_api" / "app.py").read_text(encoding="utf-8")
-            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            app_file = (generated_project / "my_awesome" / "app.py").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome" / "initialize.py").read_text(encoding="utf-8")
 
             self.assertNotIn("SQLAlchemy", pyproject)
             self.assertNotIn("Alembic", pyproject)
@@ -337,32 +344,32 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("PyMySQL", requirements)
             self.assertNotIn("DATABASE_URL", env_example)
             self.assertNotIn("POSTGRES_HOST", env_example)
-            self.assertNotIn("from my_awesome_api.db import db", app_file)
-            self.assertNotIn("from my_awesome_api.db import db", initialize_file)
-            self.assertIn("from my_awesome_api.infrastructure import apm, security", initialize_file)
-            self.assertNotIn("from my_awesome_api.infrastructure import apm, database, security", initialize_file)
+            self.assertNotIn("from my_awesome.db import db", app_file)
+            self.assertNotIn("from my_awesome.db import db", initialize_file)
+            self.assertIn("from my_awesome.infrastructure import apm, security", initialize_file)
+            self.assertNotIn("from my_awesome.infrastructure import apm, database, security", initialize_file)
             self.assertNotIn("db.init_app", app_file)
             self.assertNotIn("db.init_app", initialize_file)
             self.assertNotIn("## Database", readme)
             self.assertNotIn("without database support", readme)
-            self.assertIn("my_awesome_api/db.py", result.database_log.removed_paths)
-            self.assertIn("my_awesome_api/infrastructure/database.py", result.database_log.removed_paths)
-            self.assertNotIn("my_awesome_api/initialize.py", result.database_log.removed_paths)
-            self.assertIn("my_awesome_api/initialize.py", result.database_log.updated_files)
+            self.assertIn("my_awesome/db.py", result.database_log.removed_paths)
+            self.assertIn("my_awesome/infrastructure/database.py", result.database_log.removed_paths)
+            self.assertNotIn("my_awesome/initialize.py", result.database_log.removed_paths)
+            self.assertIn("my_awesome/initialize.py", result.database_log.updated_files)
             self.assertIn("migrations", result.database_log.removed_paths)
             self.assertIn("alembic.ini", result.database_log.removed_paths)
             self.assertTrue((generated_project / "pyproject.toml").is_file())
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.app")
+                module = importlib.import_module("my_awesome.app")
                 self.assertEqual(module.create_app(), {"name": "My Awesome API"})
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.app", None)
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.app", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_keeps_celery_support_when_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -378,13 +385,13 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "worker.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "infrastructure" / "worker.py").is_file())
 
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
             requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
             readme = (generated_project / "README.md").read_text(encoding="utf-8")
-            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome" / "initialize.py").read_text(encoding="utf-8")
 
             self.assertIn("celery", pyproject)
             self.assertIn("celery", requirements)
@@ -393,22 +400,22 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertIn("Celery worker support", readme)
             self.assertIn("CELERY_BROKER_URL=redis://localhost:6379/1", readme)
             self.assertIn("CELERY_RESULT_BACKEND=redis://localhost:6379/1", readme)
-            self.assertIn("celery -A my_awesome_api.initialize:celery_app worker --loglevel=info", readme)
+            self.assertIn("celery -A my_awesome.initialize:celery_app worker --loglevel=info", readme)
             self.assertEqual(result.celery_log.enabled, True)
             self.assertEqual(result.celery_log.removed_paths, [])
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.initialize")
+                module = importlib.import_module("my_awesome.initialize")
                 self.assertEqual(module.create_app(), {"name": "My Awesome API"})
                 self.assertEqual(module.celery_app, {"worker_for": "My Awesome API"})
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.infrastructure.worker", None)
-                sys.modules.pop("my_awesome_api.infrastructure", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.infrastructure.worker", None)
+                sys.modules.pop("my_awesome.infrastructure", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_removes_celery_support_when_disabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -424,13 +431,13 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "worker.py").exists())
+            self.assertFalse((generated_project / "my_awesome" / "infrastructure" / "worker.py").exists())
 
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
             requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
             readme = (generated_project / "README.md").read_text(encoding="utf-8")
-            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome" / "initialize.py").read_text(encoding="utf-8")
             agents = (generated_project / "AGENTS.md").read_text(encoding="utf-8")
 
             self.assertNotIn("celery", pyproject.lower())
@@ -442,20 +449,20 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("celery -A", agents)
             self.assertNotIn("## Celery", readme)
             self.assertNotIn("without Celery support", readme)
-            self.assertIn("my_awesome_api/infrastructure/worker.py", result.celery_log.removed_paths)
+            self.assertIn("my_awesome/infrastructure/worker.py", result.celery_log.removed_paths)
             self.assertTrue((generated_project / "pyproject.toml").is_file())
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.initialize")
+                module = importlib.import_module("my_awesome.initialize")
                 self.assertEqual(module.create_app(), {"name": "My Awesome API"})
                 self.assertFalse(hasattr(module, "celery_app"))
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.infrastructure", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.infrastructure", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_keeps_aws_support_when_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -471,20 +478,20 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "cloud.py").is_file())
-            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "__init__.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "infrastructure" / "cloud.py").is_file())
+            self.assertTrue((generated_project / "my_awesome" / "infrastructure" / "__init__.py").is_file())
 
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
             requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
             readme = (generated_project / "README.md").read_text(encoding="utf-8")
-            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome" / "initialize.py").read_text(encoding="utf-8")
 
             self.assertIn("boto3", pyproject)
             self.assertIn("boto3", requirements)
             self.assertIn("CLOUD_REGION=", env_example)
             self.assertIn("SNS_PLATFORM_APPLICATION_ARN=", env_example)
-            self.assertIn("from my_awesome_api.infrastructure import apm, security, cloud", initialize_file)
+            self.assertIn("from my_awesome.infrastructure import apm, security, cloud", initialize_file)
             self.assertIn("AWS integration support", readme)
             self.assertIn("aws sts get-caller-identity", readme)
             self.assertIn("CLOUD_REGION=us-east-1", readme)
@@ -495,15 +502,15 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.initialize")
+                module = importlib.import_module("my_awesome.initialize")
                 self.assertEqual(module.create_app(), {"name": "My Awesome API"})
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.infrastructure.cloud", None)
-                sys.modules.pop("my_awesome_api.infrastructure", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.infrastructure.cloud", None)
+                sys.modules.pop("my_awesome.infrastructure", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_removes_aws_support_when_cloud_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -518,14 +525,14 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "cloud.py").exists())
-            self.assertTrue((generated_project / "my_awesome_api" / "infrastructure" / "__init__.py").is_file())
+            self.assertFalse((generated_project / "my_awesome" / "infrastructure" / "cloud.py").exists())
+            self.assertTrue((generated_project / "my_awesome" / "infrastructure" / "__init__.py").is_file())
 
             pyproject = (generated_project / "pyproject.toml").read_text(encoding="utf-8")
             requirements = (generated_project / "requirements.txt").read_text(encoding="utf-8")
             env_example = (generated_project / ".env.example").read_text(encoding="utf-8")
             readme = (generated_project / "README.md").read_text(encoding="utf-8")
-            initialize_file = (generated_project / "my_awesome_api" / "initialize.py").read_text(encoding="utf-8")
+            initialize_file = (generated_project / "my_awesome" / "initialize.py").read_text(encoding="utf-8")
             agents = (generated_project / "AGENTS.md").read_text(encoding="utf-8")
             docker_compose = (generated_project / "docker-compose.yml").read_text(encoding="utf-8")
 
@@ -538,20 +545,20 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             self.assertNotIn("CLOUD_REGION", docker_compose)
             self.assertNotIn("## AWS", readme)
             self.assertNotIn("without AWS support", readme)
-            self.assertIn("my_awesome_api/infrastructure/cloud.py", result.cloud_log.removed_paths)
+            self.assertIn("my_awesome/infrastructure/cloud.py", result.cloud_log.removed_paths)
             self.assertIsNone(result.cloud_log.provider)
             self.assertFalse(result.cloud_log.enabled)
 
             sys.path.insert(0, str(generated_project))
             try:
-                module = importlib.import_module("my_awesome_api.initialize")
+                module = importlib.import_module("my_awesome.initialize")
                 self.assertEqual(module.create_app(), {"name": "My Awesome API"})
             finally:
                 sys.path.remove(str(generated_project))
-                sys.modules.pop("my_awesome_api.initialize", None)
-                sys.modules.pop("my_awesome_api.infrastructure", None)
-                sys.modules.pop("my_awesome_api.config", None)
-                sys.modules.pop("my_awesome_api", None)
+                sys.modules.pop("my_awesome.initialize", None)
+                sys.modules.pop("my_awesome.infrastructure", None)
+                sys.modules.pop("my_awesome.config", None)
+                sys.modules.pop("my_awesome", None)
 
     def test_create_project_removes_aws_support_for_unsupported_cloud_provider(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -567,7 +574,7 @@ class TestScaffoldCloneIntegration(unittest.TestCase):
             )
             generated_project = result.path
 
-            self.assertFalse((generated_project / "my_awesome_api" / "infrastructure" / "cloud.py").exists())
+            self.assertFalse((generated_project / "my_awesome" / "infrastructure" / "cloud.py").exists())
             self.assertEqual(result.cloud_log.provider, "gcp")
             self.assertFalse(result.cloud_log.enabled)
             self.assertTrue(any("Unsupported cloud provider 'gcp'" in warning for warning in result.cloud_log.warnings))
